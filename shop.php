@@ -1,69 +1,97 @@
 <?php
 
-    include 'connection.php';
-    session_start();
-    $user_id = $_SESSION['user_id'];
-    $user_id2 = $_SESSION['user_name'];
+include 'connection.php';
+session_start();
+$user_id = $_SESSION['user_id'];
+$user_id2 = $_SESSION['user_name'];
 
-    if(!isset($user_id2)){
-        header('location:login.php');
+if (!isset($user_id2)) {
+    header('location:login.php');
+}
+
+if (isset($_POST['logout'])) {
+    session_destroy();
+    header('location:login.php');
+}
+
+// Interface for Wishlist operations
+interface IWishlist {
+    public function addToWishlist($product_id);
+}
+
+// Interface for Order operations
+interface IOrder {
+    public function buyNow($data);
+}
+
+// Class implementing the Wishlist interface (Satisfies ISP)
+class Wishlist implements IWishlist {
+    private $conn;
+    private $user_id;
+
+    public function __construct($conn, $user_id) {
+        $this->conn = $conn;
+        $this->user_id = $user_id;
     }
 
-    if(isset($_POST['logout'])) {
-        session_destroy();
-        header('location:login.php');
-    }
-    if(isset($_POST['wishlist_submit'])){
-        $product_id=$_POST['product_id'];
+    public function addToWishlist($product_id) {
+        $wishlist_number = mysqli_query($this->conn, "SELECT * FROM `wishlist` WHERE `product_id`='$product_id'") or die('query failed');
         
-
-        $wishlist_number= mysqli_query($conn, "SELECT * FROM `wishlist`  where
-        `product_id`='$product_id'") or die('query failed');
-
-        if(mysqli_num_rows($wishlist_number)>0){
-            $message[]='product already exist in wishlist';}
-            
-        else{
-            mysqli_query($conn, "INSERT INTO `wishlist` (`user_id`,`product_id`)
-                VALUES('$user_id','$product_id')") or die('query failed1');
-                $message[]='product succesfully added in your wishlist';
-                
-                
+        if (mysqli_num_rows($wishlist_number) > 0) {
+            return 'Product already exists in wishlist';
+        } else {
+            mysqli_query($this->conn, "INSERT INTO `wishlist` (`user_id`, `product_id`) VALUES('$this->user_id', '$product_id')") or die('query failed');
+            return 'Product successfully added to your wishlist';
         }
+    }
+}
 
+// Class implementing the Order interface (Satisfies ISP)
+class Order implements IOrder {
+    private $conn;
+    private $user_id;
+
+    public function __construct($conn, $user_id) {
+        $this->conn = $conn;
+        $this->user_id = $user_id;
     }
 
-    //adding products to database
-    if(isset($_POST['buy_now']) ){
+    public function buyNow($data) {
+        $product_price = mysqli_real_escape_string($this->conn, $data['price']);
+        $product_cart_quantity = mysqli_real_escape_string($this->conn, $data['cart_quantity']);
+        $product_id = mysqli_real_escape_string($this->conn, $data['product_id']);
+        $full_name = mysqli_real_escape_string($this->conn, $data['full_name']);
+        $product_phone_number = mysqli_real_escape_string($this->conn, $data['phone_number']);
+        $product_delivery_address = mysqli_real_escape_string($this->conn, $data['delivery_address']);
+        $product_quantity = mysqli_real_escape_string($this->conn, $data['product_quantity']);
+        
+        $product_quantity2 = $product_quantity - $product_cart_quantity;
+        $amount = $product_price * $product_cart_quantity;
 
+        mysqli_query($this->conn, "INSERT INTO `cart` (`user_id`, `product_id`, `cart_quantity`, `full_name`, `phone_number`, `delivery_address`, `amount`) 
+            VALUES('$this->user_id', '$product_id', '$product_cart_quantity', '$full_name', '$product_phone_number', '$product_delivery_address', '$amount')") or die('query failed');
 
-        //product_id full_name phone_number delivery_address cart_quantity
-
-        $product_price= mysqli_real_escape_string($conn, $_POST['price']);
-        $product_cart_quantity= mysqli_real_escape_string($conn, $_POST['cart_quantity']);
-
-        $product_id= mysqli_real_escape_string($conn, $_POST['product_id']);
-        $full_name= mysqli_real_escape_string($conn, $_POST['full_name']);
-        $product_phone_number= mysqli_real_escape_string($conn, $_POST['phone_number']);
-        $product_delivery_address= mysqli_real_escape_string($conn, $_POST['delivery_address']);
-        $product_quantity= mysqli_real_escape_string($conn, $_POST['product_quantity']);
-
-        $product_quantity2=$product_quantity-$product_cart_quantity;
-
-        $amount = $product_price*$product_cart_quantity;
-
-        $insert_product = mysqli_query($conn, "INSERT INTO `cart` (`user_id`,`product_id`,`cart_quantity`,`full_name`,`phone_number`, `delivery_address`,`amount`)
-                VALUES('$user_id','$product_id','$product_cart_quantity','$full_name','$product_phone_number','$product_delivery_address','$amount ')") or die('query failed');
-
-
-        $update_query = mysqli_query($conn, "UPDATE `products` SET `product_quantity`='$product_quantity2' WHERE  product_id='$product_id'")or die('query failed');
-     
+        mysqli_query($this->conn, "UPDATE `products` SET `product_quantity`='$product_quantity2' WHERE `product_id`='$product_id'") or die('query failed');
 
         header('location:order.php');
-        
     }
+}
 
+// Handle adding to wishlist
+if (isset($_POST['wishlist_submit'])) {
+    $product_id = $_POST['product_id'];
+    $wishlist = new Wishlist($conn, $user_id);
+    $message[] = $wishlist->addToWishlist($product_id);
+}
+
+// Handle buying now
+if (isset($_POST['buy_now'])) {
+    $order = new Order($conn, $user_id);
+    $order->buyNow($_POST);
+}
 ?>
+
+
 <style type = "text/css">
     <?php
         include 'main.css';

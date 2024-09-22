@@ -1,106 +1,112 @@
 <?php
 
-    include 'connection.php';
-    session_start();
-    $admin_id = $_SESSION['admin_name'];
+include 'connection.php';
+session_start();
+$admin_id = $_SESSION['admin_name'];
 
-    if(!isset($admin_id)){
-        header('location:login.php');
+if (!isset($admin_id)) {
+    header('location:login.php');
+}
+
+if (isset($_POST['logout'])) {
+    session_destroy();
+    header('location:login.php');
+}
+
+// Product Manager Class
+class ProductManager {
+    protected $conn;
+
+    public function __construct($connection) {
+        $this->conn = $connection;
     }
+}
 
-    if(isset($_POST['logout'])) {
-        session_destroy();
-        header('location:login.php');
-    }
-    //adding products to database
-    if(isset($_POST['add_product']) && isset($_FILES['image']) ){
-        //echo 'hello';
-        $product_name= mysqli_real_escape_string($conn, $_POST['name']);
-        $product_price= mysqli_real_escape_string($conn, $_POST['price']);
-        $product_quantity= mysqli_real_escape_string($conn, $_POST['quantity']);
-        $product_category= mysqli_real_escape_string($conn, $_POST['category']);
-        $product_detail= mysqli_real_escape_string($conn, $_POST['detail']);
-        //$image= mysqli_real_escape_string($conn, $_POST['image']);
-        $image= $_FILES['image']['name'];
-        $image_size= $_FILES['image']['size'];
-        $image_tmp_name= $_FILES['image']['tmp_name'];
-        $image_folder= 'img/'.$image;
+// Class for Adding Products - S -> Single Responsibility Principle
+class ProductAdder extends ProductManager {
+    public function addProduct($data, $image) {
+        // Logic for adding a product to the database
+        $product_name = mysqli_real_escape_string($this->conn, $data['name']);
+        $product_price = mysqli_real_escape_string($this->conn, $data['price']);
+        $product_quantity = mysqli_real_escape_string($this->conn, $data['quantity']);
+        $product_category = mysqli_real_escape_string($this->conn, $data['category']);
+        $product_detail = mysqli_real_escape_string($this->conn, $data['detail']);
+        $image_folder = 'img/' . $image['name'];
 
-        //name, price, quantity, category, detail, image
+        $insert_product = mysqli_query($this->conn, "INSERT INTO `products` (`name`,`price`,`detail`,`product_quantity`,`category`, `image`)
+            VALUES('$product_name','$product_price','$product_detail','$product_quantity','$product_category','{$image['name']}')");
 
-        
-            $insert_product = mysqli_query($conn, "INSERT INTO `products` (`name`,`price`,`detail`,`product_quantity`,`category`, `image`)
-                VALUES('$product_name','$product_price','$product_detail','$product_quantity','$product_category','$image')") or die('query failed');
-            if($insert_product){
-                //echo 'hello1';
-                if($image_size>2000000){
-                    $message[]='product added successfully';
-                }else{
-                    //echo 'hello';
-                    move_uploaded_file($image_tmp_name, $image_folder);
-                    $message[]='product added successfully';
-                }
-            }
-        
-    }
-
-    //delete products from database
-    if(isset($_GET['delete'])){
-        $delete_id = $_GET['delete'];
-        $select_delete_image = mysqli_query($conn, "SELECT * FROM `products` WHERE product_id = '$delete_id'") or die('query failed');
-        $feteh_delete_image = mysqli_fetch_assoc($select_delete_image);
-        unlink('image/'.$feteh_delete_image['image']);
-
-        mysqli_query($conn, "DELETE FROM `products` WHERE product_id = '$delete_id'") or die('query failed');
-        //mysqli_query($conn, "DELETE FROM `cart` WHERE pid = '$delete_id'") or die('query failed');
-        //mysqli_query($conn, "DELETE FROM `wishlist` WHERE pid = '$delete_id'") or die('query failed');
-
-        header('location:admin_product.php');
-    }
-
-    //update product
-    if(isset($_POST['updte_product'])){
-        $update_id = $_POST['update_id'];
-        $update_name = $_POST['update_name'];
-        $update_price = $_POST['update_price'];
-
-        $update_quantity = $_POST['update_quantity'];
-        $update_category = $_POST['update_category'];
-
-        $update_detail = $_POST['update_detail'];
-        $update_image = $_FILES['update_image']['name'];
-        $update_image_tmp_name = $_FILES['update_image']['tmp_name'];
-        $update_image_folder = 'img/'.$update_image;
-
-        
-        
-
-
-        
-
-        if($update_image!=NULL){
-            $update_query = mysqli_query($conn, "UPDATE `products` SET `product_id`='$update_id',
-            `name`='$update_name',`price`='$update_price',`product_quantity`='$update_quantity',
-            `category`='$update_category',
-            `detail`='$update_detail',`image`='$update_image' WHERE  product_id='$update_id'")or die('query failed');
-        }else{
-
-        
-
-            $update_query = mysqli_query($conn, "UPDATE `products` SET `product_id`='$update_id',
-            `name`='$update_name',`price`='$update_price',`detail`='$update_detail',
-            `product_quantity`='$update_quantity',
-            `category`='$update_category'
-             WHERE `product_id`='$update_id'")or die('query failed1');
+        if ($insert_product) {
+            move_uploaded_file($image['tmp_name'], $image_folder);
+            return 'Product added successfully';
         }
-        if($update_query){
-            move_uploaded_file($update_image_tmp_name,$update_image_folder);
-            header('location:admin_product.php');
-        }
+        return 'Query failed';
     }
+}
 
+// Class for Updating Products - S -> Single Responsibility Principle
+class ProductUpdater extends ProductManager {
+    public function updateProduct($data, $image = null) {
+        // Logic for updating an existing product in the database
+        $update_id = $data['update_id'];
+        $update_name = mysqli_real_escape_string($this->conn, $data['update_name']);
+        $update_price = mysqli_real_escape_string($this->conn, $data['update_price']);
+        $update_quantity = mysqli_real_escape_string($this->conn, $data['update_quantity']);
+        $update_category = mysqli_real_escape_string($this->conn, $data['update_category']);
+        $update_detail = mysqli_real_escape_string($this->conn, $data['update_detail']);
+        $update_image_folder = 'img/' . $image['name'];
+
+        $update_query = "UPDATE `products` SET `name`='$update_name', `price`='$update_price', `product_quantity`='$update_quantity', `category`='$update_category', `detail`='$update_detail'";
+
+        if ($image) {
+            $update_query .= ", `image`='{$image['name']}'";
+            move_uploaded_file($image['tmp_name'], $update_image_folder);
+        }
+
+        $update_query .= " WHERE `product_id`='$update_id'";
+        mysqli_query($this->conn, $update_query);
+        return 'Product updated successfully';
+    }
+}
+
+// Class for Deleting Products - S -> Single Responsibility Principle
+class ProductDeleter extends ProductManager {
+    public function deleteProduct($id) {
+        // Logic for deleting a product from the database
+        $select_delete_image = mysqli_query($this->conn, "SELECT * FROM `products` WHERE product_id = '$id'");
+        $fetch_delete_image = mysqli_fetch_assoc($select_delete_image);
+        unlink('img/' . $fetch_delete_image['image']);
+
+        mysqli_query($this->conn, "DELETE FROM `products` WHERE product_id = '$id'");
+        return 'Product deleted successfully';
+    }
+}
+
+// Instantiate classes
+$productAdder = new ProductAdder($conn);
+$productUpdater = new ProductUpdater($conn);
+$productDeleter = new ProductDeleter($conn);
+
+$message = [];
+
+// Handle product addition
+if (isset($_POST['add_product']) && isset($_FILES['image'])) {
+    $message[] = $productAdder->addProduct($_POST, $_FILES['image']);
+}
+
+// Handle product deletion
+if (isset($_GET['delete'])) {
+    $message[] = $productDeleter->deleteProduct($_GET['delete']);
+}
+
+// Handle product update
+if (isset($_POST['updte_product'])) {
+    $image = isset($_FILES['update_image']) ? $_FILES['update_image'] : null;
+    $message[] = $productUpdater->updateProduct($_POST, $image);
+}
 
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
