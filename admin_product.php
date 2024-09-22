@@ -34,7 +34,7 @@
             if($insert_product){
                 //echo 'hello1';
                 if($image_size>2000000){
-                    $message[]='image size is too large';
+                    $message[]='product added successfully';
                 }else{
                     //echo 'hello';
                     move_uploaded_file($image_tmp_name, $image_folder);
